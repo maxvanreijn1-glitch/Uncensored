@@ -19,14 +19,10 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            // 1 – Home (video feed)
-            NavigationStack {
-                VideoFeedView()
-                    .navigationTitle("For You")
-                    .navigationBarTitleDisplayMode(.inline)
-            }
-            .tabItem { Label("Home", systemImage: "house.fill") }
-            .tag(Tab.home)
+            // 1 – Home (video feed) — fullscreen, no navigation bar
+            VideoFeedView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(Tab.home)
 
             // 2 – Threads
             NavigationStack {
