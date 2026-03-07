@@ -6,12 +6,23 @@
 //
 
 import SwiftUI
+import FirebaseCore
+import GoogleSignIn
 
 @main
 struct UncensoredApp: App {
+
+    init() {
+        FirebaseApp.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppRootView()
+                .onOpenURL { url in
+                    // Required for Google Sign-In redirect to complete.
+                    GIDSignIn.sharedInstance.handle(url)
+                }
         }
     }
 }
