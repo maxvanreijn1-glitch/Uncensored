@@ -12,12 +12,17 @@ struct ThreadDetailView: View {
 
     // TODO: Fetch real replies from Firestore `threads/{id}/replies`.
     @State private var replies: [ThreadReply] = Self.placeholderReplies
+    @State private var isLikedThread = false
 
     var body: some View {
         List {
             // Original thread
             Section {
-                ThreadRowView(thread: thread)
+                ThreadRowView(
+                    thread: thread,
+                    isLiked: $isLikedThread,
+                    onLike: { isLikedThread.toggle() }
+                )
             }
 
             // Replies

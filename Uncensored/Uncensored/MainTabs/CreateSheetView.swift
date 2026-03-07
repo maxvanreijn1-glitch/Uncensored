@@ -4,78 +4,158 @@
 //
 
 import SwiftUI
+import PhotosUI
+import FirebaseAuth
+import FirebaseFirestore
 
-/// Sheet opened by the centre "+" tab button – lets the user choose what to create.
+/// Sheet opened by the centre "+" tab button.
+/// Provides a tabbed interface to post a video or compose a thread.
 struct CreateSheetView: View {
 
     @Environment(\.dismiss) private var dismiss
-    @State private var showVideoCreate = false
-    @State private var showThreadCreate = false
+    @State private var selectedTab: CreateTab = .thread
+
+    enum CreateTab: String, CaseIterable {
+        case video = "Video"
+        case thread = "Thread"
+
+        var icon: String {
+            switch self {
+            case .video:  return "video.fill"
+            case .thread: return "text.bubble.fill"
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Text("Create")
-                    .font(.title2.bold())
-                    .padding(.top, 24)
-                    .padding(.bottom, 32)
-
-                Button {
-                    showVideoCreate = true
-                } label: {
-                    createRow(
-                        icon: "video.fill",
-                        title: "Upload / Record Video",
-                        subtitle: "Share a video with the world"
-                    )
+                // Tab picker
+                Picker("Create", selection: $selectedTab) {
+                    ForEach(CreateTab.allCases, id: \.self) { tab in
+                        Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
 
-                Divider().padding(.horizontal)
+                Divider()
 
-                Button {
-                    showThreadCreate = true
-                } label: {
-                    createRow(
-                        icon: "text.bubble.fill",
-                        title: "Create Thread",
-                        subtitle: "Share your thoughts"
-                    )
+                // Tab content
+                switch selectedTab {
+                case .video:
+                    VideoCreateView()
+                        .id("video")
+                case .thread:
+                    InlineCreateThreadView(onPosted: { dismiss() })
+                        .id("thread")
                 }
-
-                Spacer()
-
-                Button("Cancel") { dismiss() }
-                    .foregroundColor(.secondary)
-                    .padding(.bottom, 40)
             }
-            .navigationBarHidden(true)
-        }
-        .sheet(isPresented: $showVideoCreate) {
-            VideoCreateView()
-        }
-        .sheet(isPresented: $showThreadCreate) {
-            CreateThreadView()
+            .navigationTitle("Create")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
+}
 
-    private func createRow(icon: String, title: String, subtitle: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .frame(width: 48, height: 48)
-                .background(Color.accentColor.opacity(0.15))
-                .cornerRadius(12)
-                .foregroundColor(.accentColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline).foregroundColor(.primary)
-                Text(subtitle).font(.caption).foregroundColor(.secondary)
+// MARK: - Inline thread creation (embedded in the sheet)
+
+private struct InlineCreateThreadView: View {
+
+    var onPosted: () -> Void
+
+    @State private var bodyText = ""
+    @State private var isPosting = false
+    @State private var errorMessage: String?
+
+    private let maxLength = 500
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ZStack(alignment: .topLeading) {
+                if bodyText.isEmpty {
+                    Text("What's on your mind?")
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                        .padding(.leading, 4)
+                }
+                TextEditor(text: $bodyText)
+                    .frame(minHeight: 160)
+                    .onChange(of: bodyText) { value in
+                        if value.count > maxLength {
+                            bodyText = String(value.prefix(maxLength))
+                        }
+                    }
             }
+            .padding(.horizontal)
+
+            HStack {
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                Spacer()
+                Text("\(bodyText.count)/\(maxLength)")
+                    .font(.caption)
+                    .foregroundColor(bodyText.count >= maxLength ? .red : .secondary)
+                    .padding(.trailing)
+            }
+
+            Button {
+                Task { await post() }
+            } label: {
+                if isPosting {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else {
+                    Text("Post Thread")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isPosting)
+            .padding(.horizontal)
+
             Spacer()
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
         }
-        .padding()
-        .contentShape(Rectangle())
+        .padding(.top, 8)
+    }
+
+    private func post() async {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            errorMessage = "You must be signed in."
+            return
+        }
+        isPosting = true
+        errorMessage = nil
+        let threadId = UUID().uuidString
+        let thread = ThreadModel(
+            id: threadId,
+            authorId: uid,
+            authorUsername: Auth.auth().currentUser?.displayName ?? "anonymous",
+            body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
+            likesCount: 0,
+            repliesCount: 0,
+            createdAt: Date()
+        )
+        do {
+            let data = try Firestore.Encoder().encode(thread)
+            try await FirebaseManager.shared.firestore
+                .collection("threads")
+                .document(threadId)
+                .setData(data)
+            onPosted()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isPosting = false
     }
 }
 
