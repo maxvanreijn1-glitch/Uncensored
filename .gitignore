@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Build products
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Packages/
+*.resolved
+
+# Firebase – NEVER commit this file; add it locally after cloning.
+GoogleService-Info.plist
+
+# CocoaPods (if used in future)
+Pods/
+Podfile.lock
+
+# Carthage (if used in future)
+Carthage/Build/
