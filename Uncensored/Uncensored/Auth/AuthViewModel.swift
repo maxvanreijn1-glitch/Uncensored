@@ -22,6 +22,18 @@ final class AuthViewModel: ObservableObject {
 
     @Published var authState: AuthState = .loading
 
+    /// Returns the signed-in user's username, or an empty string if not signed in.
+    var currentUsername: String {
+        if case .signedIn(let profile) = authState { return profile.username }
+        return ""
+    }
+
+    /// Returns the signed-in user's full profile, or nil if not signed in.
+    var currentProfile: UserProfile? {
+        if case .signedIn(let profile) = authState { return profile }
+        return nil
+    }
+
     private let auth = FirebaseManager.shared.auth
     private let firestore = FirebaseManager.shared.firestore
     private let storage = FirebaseManager.shared.storage
