@@ -11,6 +11,7 @@ import FirebaseAuth
 struct VideoCreateView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authVM: AuthViewModel
 
     // MARK: - State
 
@@ -175,12 +176,14 @@ struct VideoCreateView: View {
             errorMessage = "You must be signed in to upload."
             return
         }
+        let authorUsername = authVM.currentUsername
         isUploading = true
         errorMessage = nil
         uploadService.uploadVideo(
             fileURL: videoURL,
             caption: caption,
             authorId: uid,
+            authorUsername: authorUsername,
             progress: { value in
                 Task { @MainActor in uploadProgress = value }
             }
@@ -260,4 +263,5 @@ struct VideoRecorderView: View {
 
 #Preview {
     VideoCreateView()
+        .environmentObject(AuthViewModel())
 }

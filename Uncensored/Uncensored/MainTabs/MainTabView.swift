@@ -62,6 +62,7 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showCreateSheet) {
             CreateSheetView()
+                .environmentObject(authVM)
         }
     }
 }

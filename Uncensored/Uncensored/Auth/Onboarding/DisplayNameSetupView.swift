@@ -6,7 +6,7 @@ struct DisplayNameSetupView: View {
     var body: some View {
         Form {
             TextField("Display Name", text: $displayName)
-              .autocapitalization(.words)
+              .textInputAutocapitalization(.words)
               .disableAutocorrection(true)
             Button("Continue") {
                 // Validate display name and save it.
