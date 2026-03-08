@@ -124,12 +124,12 @@ struct VideoFeedView: View {
                         showShareSheet = true
                     },
                     onFollow: { },
-                    isLiked: viewModel.likeBinding(for: video),
                     isOwnContent: video.authorId == authVM.currentUserId,
                     onDelete: {
                         videoToDelete = video
                         showDeleteConfirm = true
-                    }
+                    },
+                    isLiked: viewModel.likeBinding(for: video)
                 )
             }
             .padding(.horizontal, 12)
