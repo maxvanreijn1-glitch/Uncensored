@@ -135,7 +135,7 @@ struct UsernameSetupView: View {
                     .offset(x: 4, y: 4)
             }
         }
-        .onChange(of: avatarItem) { item in
+        .onChange(of: avatarItem) { _, item in
             Task { await loadAvatar(from: item) }
         }
     }
@@ -152,7 +152,7 @@ struct UsernameSetupView: View {
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                     .foregroundColor(.white)
-                    .onChange(of: username) { value in
+                    .onChange(of: username) { _, value in
                         // Display lowercase in real-time so the user sees exactly what will be saved
                         let lowered = value.lowercased()
                         if lowered != value { username = lowered }
@@ -203,7 +203,7 @@ struct UsernameSetupView: View {
                     .scrollContentBackground(.hidden)
                     .foregroundColor(.white)
                     .frame(minHeight: 80, maxHeight: 120)
-                    .onChange(of: bio) { value in
+                    .onChange(of: bio) { _, value in
                         if value.count > bioLimit {
                             bio = String(value.prefix(bioLimit))
                         }
@@ -256,6 +256,7 @@ struct UsernameSetupView: View {
 
     private func save() async {
         isLoading = true
+        defer { isLoading = false }
         errorMessage = nil
         do {
             try await authVM.saveProfile(
@@ -267,7 +268,6 @@ struct UsernameSetupView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-        isLoading = false
     }
 }
 

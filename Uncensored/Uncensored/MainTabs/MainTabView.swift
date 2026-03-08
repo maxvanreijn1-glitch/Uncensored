@@ -54,7 +54,7 @@ struct MainTabView: View {
         }
         .tint(.primary)
         // Intercept tap on the "+" tab and open sheet instead
-        .onChange(of: selectedTab) { newTab in
+        .onChange(of: selectedTab) { _, newTab in
             if newTab == .create {
                 showCreateSheet = true
                 selectedTab = .home   // Immediately reset so it never visually selects
