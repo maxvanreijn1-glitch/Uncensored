@@ -167,9 +167,64 @@ final class AuthViewModel: ObservableObject {
         return ""
     }
 
+    /// The UID of the currently signed-in user, or empty string if not available.
+    var currentUserId: String {
+        if case .signedIn(let profile) = authState {
+            return profile.id
+        }
+        return auth.currentUser?.uid ?? ""
+    }
+
+    /// The current user's profile, if signed in.
+    var currentProfile: UserProfile? {
+        if case .signedIn(let profile) = authState { return profile }
+        return nil
+    }
+
     // MARK: - Sign out
 
     func signOut() {
         try? auth.signOut()
+    }
+
+    // MARK: - Update profile (for settings)
+
+    func updateProfile(displayName: String, bio: String, isPrivate: Bool, avatarData: Data?) async throws {
+        guard case .signedIn(let profile) = authState else { return }
+        let uid = profile.id
+        let docRef = firestore.collection("users").document(uid)
+        let updateData: [String: Any] = [
+            "displayName": displayName,
+            "bio": bio,
+            "isPrivate": isPrivate,
+        ]
+        try await docRef.setData(updateData, merge: true)
+        // Patch in-memory profile
+        if case .signedIn(var current) = authState {
+            current.displayName = displayName
+            current.bio = bio
+            current.isPrivate = isPrivate
+            authState = .signedIn(profile: current)
+        }
+        // Upload avatar if provided
+        if let data = avatarData {
+            Task { @MainActor in
+                do {
+                    let storageRef = storage.reference().child("avatars/\(uid).jpg")
+                    let metadata = StorageMetadata()
+                    metadata.contentType = "image/jpeg"
+                    _ = try await storageRef.putDataAsync(data, metadata: metadata)
+                    let downloadURL = try await storageRef.downloadURL()
+                    let avatarURL = downloadURL.absoluteString
+                    try? await docRef.setData(["avatarURL": avatarURL], merge: true)
+                    if case .signedIn(var current) = self.authState, current.id == uid {
+                        current.avatarURL = avatarURL
+                        self.authState = .signedIn(profile: current)
+                    }
+                } catch {
+                    // Non-critical
+                }
+            }
+        }
     }
 }

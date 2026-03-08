@@ -10,6 +10,11 @@ import Combine
 struct ThreadsFeedView: View {
 
     @StateObject private var viewModel = ThreadsFeedViewModel()
+    @EnvironmentObject private var authVM: AuthViewModel
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var threadToDelete: ThreadModel?
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         List {
@@ -18,7 +23,16 @@ struct ThreadsFeedView: View {
                     ThreadRowView(
                         thread: thread,
                         isLiked: viewModel.likeBinding(for: thread),
-                        onLike: { viewModel.toggleLike(for: thread) }
+                        onLike: { viewModel.toggleLike(for: thread) },
+                        onShare: {
+                            shareItems = [thread.body]
+                            showShareSheet = true
+                        },
+                        isOwnContent: thread.authorId == authVM.currentUserId,
+                        onDelete: {
+                            threadToDelete = thread
+                            showDeleteConfirm = true
+                        }
                     )
                 }
                 .listRowSeparator(.hidden)
@@ -66,6 +80,16 @@ struct ThreadsFeedView: View {
                 }
             }
         }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: shareItems)
+        }
+        .confirmationDialog("Delete Thread?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let thread = threadToDelete {
+                    Task { await viewModel.deleteThread(thread) }
+                }
+            }
+        }
     }
 }
 
@@ -75,6 +99,9 @@ struct ThreadRowView: View {
     let thread: ThreadModel
     @Binding var isLiked: Bool
     var onLike: () -> Void
+    var onShare: (() -> Void)? = nil
+    var isOwnContent: Bool = false
+    var onDelete: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -95,6 +122,16 @@ struct ThreadRowView: View {
                     Text(thread.createdAt, style: .relative)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    if isOwnContent, let onDelete {
+                        Button {
+                            onDelete()
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 Text(thread.body)
                     .font(.body)
@@ -121,7 +158,7 @@ struct ThreadRowView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        // TODO: Share sheet
+                        onShare?()
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                             .font(.caption)
@@ -139,5 +176,7 @@ struct ThreadRowView: View {
     NavigationStack {
         ThreadsFeedView()
             .navigationTitle("Threads")
+            .environmentObject(AuthViewModel())
     }
 }
+

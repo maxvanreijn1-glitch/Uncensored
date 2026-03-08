@@ -14,15 +14,37 @@ struct ProfileView: View {
     @EnvironmentObject private var authVM: AuthViewModel
     @State private var selectedTab: ProfileTab = .videos
     @State private var showEditProfile = false
+    @State private var showSettings = false
 
-    // Placeholder grid data (replace with real Firestore fetch)
-    private let placeholderVideos = Array(0..<9)
+    // Real data
+    @State private var videos: [VideoModel] = []
+    @State private var threads: [ThreadModel] = []
+    @State private var likedVideos: [VideoModel] = []
+    @State private var isLoadingContent = false
+    @State private var followersCount: Int
+    @State private var followingCount: Int
+    @State private var videosCount: Int
+
+    // Follow state
+    @State private var isFollowing = false
+    @State private var isTogglingFollow = false
+
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var threadToDelete: ThreadModel?
+    @State private var showDeleteThreadConfirm = false
+
+    private let firestore = FirebaseManager.shared.firestore
 
     private let columns = [
         GridItem(.flexible(), spacing: 2),
         GridItem(.flexible(), spacing: 2),
         GridItem(.flexible(), spacing: 2),
     ]
+
+    var isOwnProfile: Bool {
+        profile.id == authVM.currentUserId
+    }
 
     enum ProfileTab: String, CaseIterable {
         case videos = "Videos"
@@ -38,6 +60,13 @@ struct ProfileView: View {
         }
     }
 
+    init(profile: UserProfile) {
+        self.profile = profile
+        _followersCount = State(initialValue: profile.followersCount)
+        _followingCount = State(initialValue: profile.followingCount)
+        _videosCount = State(initialValue: profile.videosCount)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -47,23 +76,56 @@ struct ProfileView: View {
                 Divider().padding(.vertical, 8)
                 tabBar
                 tabContent
-                signOutButton
+                if isOwnProfile {
+                    signOutButton
+                }
             }
         }
-        .navigationTitle("Profile")
+        .navigationTitle(isOwnProfile ? "Profile" : "@\(profile.username)")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showEditProfile = true
-                } label: {
-                    Image(systemName: "gearshape")
+            if isOwnProfile {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        shareItems = ["Check out @\(profile.username) on Uncensored!"]
+                        showShareSheet = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
                 }
             }
         }
         .sheet(isPresented: $showEditProfile) {
-            EditProfilePlaceholderView(profile: profile)
+            EditProfileView(profile: profile)
                 .environmentObject(authVM)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(authVM)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: shareItems)
+        }
+        .confirmationDialog("Delete Thread?", isPresented: $showDeleteThreadConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let thread = threadToDelete {
+                    Task { await deleteThread(thread) }
+                }
+            }
+        }
+        .task {
+            await loadContent()
+            if !isOwnProfile {
+                await checkFollowStatus()
+            }
         }
     }
 
@@ -125,9 +187,17 @@ struct ProfileView: View {
 
     private var statsRow: some View {
         HStack(spacing: 40) {
-            statColumn(value: profile.followingCount, label: "Following")
-            statColumn(value: profile.followersCount, label: "Followers")
-            statColumn(value: profile.videosCount, label: "Posts")
+            NavigationLink(destination: FollowingListView(userId: profile.id)) {
+                statColumn(value: followingCount, label: "Following")
+            }
+            .foregroundColor(.primary)
+
+            NavigationLink(destination: FollowersListView(userId: profile.id)) {
+                statColumn(value: followersCount, label: "Followers")
+            }
+            .foregroundColor(.primary)
+
+            statColumn(value: videosCount, label: "Posts")
         }
         .padding(.vertical, 12)
     }
@@ -144,14 +214,33 @@ struct ProfileView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 12) {
-            Button("Edit profile") { showEditProfile = true }
-                .font(.subheadline.bold())
-                .frame(maxWidth: .infinity, minHeight: 36)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.secondary, lineWidth: 1)
-                )
-                .foregroundColor(.primary)
+            if isOwnProfile {
+                Button("Edit profile") { showEditProfile = true }
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary, lineWidth: 1)
+                    )
+                    .foregroundColor(.primary)
+            } else {
+                Button {
+                    Task { await toggleFollow() }
+                } label: {
+                    if isTogglingFollow {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                    } else {
+                        Text(isFollowing ? "Unfollow" : "Follow")
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(isFollowing ? Color.secondary.opacity(0.2) : Color.accentColor)
+                            .foregroundColor(isFollowing ? .primary : .white)
+                            .cornerRadius(8)
+                    }
+                }
+                .disabled(isTogglingFollow)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
@@ -186,44 +275,115 @@ struct ProfileView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
-        case .videos:
-            LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(placeholderVideos, id: \.self) { i in
-                    Color(hue: Double(i) / Double(max(placeholderVideos.count, 1)),
-                          saturation: 0.5, brightness: 0.5)
-                        .aspectRatio(9/16, contentMode: .fill)
-                        .overlay(
-                            Image(systemName: "play.fill")
-                                .foregroundColor(.white.opacity(0.6))
-                        )
-                        .clipped()
+        if isLoadingContent {
+            ProgressView()
+                .padding(.top, 40)
+        } else {
+            switch selectedTab {
+            case .videos:
+                if videos.isEmpty {
+                    emptyTabView(icon: "play.rectangle", message: "No videos yet")
+                } else {
+                    LazyVGrid(columns: columns, spacing: 2) {
+                        ForEach(videos) { video in
+                            videoThumbnail(video)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+
+            case .threads:
+                if threads.isEmpty {
+                    emptyTabView(icon: "text.bubble", message: "No threads yet")
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(threads) { thread in
+                            threadRow(thread)
+                            Divider().padding(.leading, 56)
+                        }
+                    }
+                }
+
+            case .likes:
+                if likedVideos.isEmpty {
+                    emptyTabView(icon: "heart", message: "No liked videos yet")
+                } else {
+                    LazyVGrid(columns: columns, spacing: 2) {
+                        ForEach(likedVideos) { video in
+                            videoThumbnail(video)
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
-            .padding(.top, 2)
-
-        case .threads:
-            VStack(spacing: 0) {
-                ForEach(0..<5, id: \.self) { i in
-                    threadPlaceholderRow(index: i)
-                    Divider().padding(.leading, 56)
-                }
-            }
-
-        case .likes:
-            emptyTabView(icon: "heart", message: "No liked videos yet")
         }
     }
 
-    private func threadPlaceholderRow(index: Int) -> some View {
+    private func videoThumbnail(_ video: VideoModel) -> some View {
+        ZStack {
+            if let thumbnailURL = video.thumbnailURL, let url = URL(string: thumbnailURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFill()
+                    default: videoPlaceholderColor(video)
+                    }
+                }
+            } else {
+                videoPlaceholderColor(video)
+            }
+            Image(systemName: "play.fill")
+                .foregroundColor(.white.opacity(0.7))
+                .font(.title3)
+        }
+        .aspectRatio(9/16, contentMode: .fill)
+        .clipped()
+        .contextMenu {
+            if isOwnProfile {
+                Button(role: .destructive) {
+                    Task { await deleteVideo(video) }
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private func videoPlaceholderColor(_ video: VideoModel) -> some View {
+        Color(hue: Double(video.id.hashValue % 10) / 10.0, saturation: 0.5, brightness: 0.4)
+    }
+
+    private func threadRow(_ thread: ThreadModel) -> some View {
         HStack(alignment: .top, spacing: 12) {
             avatarView(size: 36, font: .subheadline.bold())
             VStack(alignment: .leading, spacing: 4) {
-                Text("@\(profile.username)")
-                    .font(.subheadline.bold())
-                Text("Placeholder thread #\(index + 1)")
+                HStack {
+                    Text("@\(thread.authorUsername)")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Text(thread.createdAt, style: .relative)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if isOwnProfile {
+                        Button {
+                            threadToDelete = thread
+                            showDeleteThreadConfirm = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                Text(thread.body)
                     .font(.body)
                     .foregroundColor(.secondary)
+                HStack(spacing: 16) {
+                    Label("\(thread.repliesCount)", systemImage: "bubble.right")
+                        .font(.caption).foregroundColor(.secondary)
+                    Label("\(thread.likesCount)", systemImage: "heart")
+                        .font(.caption).foregroundColor(.secondary)
+                }
             }
             Spacer()
         }
@@ -253,35 +413,137 @@ struct ProfileView: View {
         .padding(.top, 24)
         .padding(.bottom, 40)
     }
-}
 
-// MARK: - Edit Profile placeholder sheet
+    // MARK: - Data loading
 
-private struct EditProfilePlaceholderView: View {
-    let profile: UserProfile
-    @EnvironmentObject private var authVM: AuthViewModel
-    @Environment(\.dismiss) private var dismiss
+    private func loadContent() async {
+        isLoadingContent = true
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await loadVideos() }
+            group.addTask { await loadThreads() }
+            group.addTask { await loadLikedVideos() }
+        }
+        isLoadingContent = false
+    }
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                Image(systemName: "person.crop.circle.badge.pencil")
-                    .font(.system(size: 56))
-                    .foregroundColor(.accentColor)
-                Text("Edit Profile")
-                    .font(.title2.bold())
-                Text("Full profile editing coming soon.")
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+    private func loadVideos() async {
+        do {
+            let snapshot = try await firestore
+                .collection("videos")
+                .whereField("authorId", isEqualTo: profile.id)
+                .order(by: "createdAt", descending: true)
+                .getDocuments()
+            let decoded = snapshot.documents.compactMap { try? $0.data(as: VideoModel.self) }
+            await MainActor.run {
+                videos = decoded
+                videosCount = decoded.count
             }
-            .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+        } catch {
+            // Silently fail
+        }
+    }
+
+    private func loadThreads() async {
+        do {
+            let snapshot = try await firestore
+                .collection("threads")
+                .whereField("authorId", isEqualTo: profile.id)
+                .order(by: "createdAt", descending: true)
+                .getDocuments()
+            let decoded = snapshot.documents.compactMap { try? $0.data(as: ThreadModel.self) }
+            await MainActor.run { threads = decoded }
+        } catch {
+            // Silently fail
+        }
+    }
+
+    private func loadLikedVideos() async {
+        do {
+            let likeSnapshot = try await firestore
+                .collection("users").document(profile.id)
+                .collection("videoLikes")
+                .getDocuments()
+            let videoIds = likeSnapshot.documents.map { $0.documentID }
+            var result: [VideoModel] = []
+            for videoId in videoIds {
+                if let doc = try? await firestore.collection("videos").document(videoId).getDocument(),
+                   let video = try? doc.data(as: VideoModel.self) {
+                    result.append(video)
                 }
             }
+            await MainActor.run { likedVideos = result }
+        } catch {
+            // Silently fail
+        }
+    }
+
+    // MARK: - Follow / Unfollow
+
+    private func checkFollowStatus() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        do {
+            let followId = "\(uid)_\(profile.id)"
+            let doc = try await firestore.collection("follows").document(followId).getDocument()
+            await MainActor.run { isFollowing = doc.exists }
+        } catch {
+            // Silently fail
+        }
+    }
+
+    private func toggleFollow() async {
+        guard let uid = Auth.auth().currentUser?.uid, !isOwnProfile else { return }
+        isTogglingFollow = true
+        let followId = "\(uid)_\(profile.id)"
+        let followRef = firestore.collection("follows").document(followId)
+        do {
+            if isFollowing {
+                try await followRef.delete()
+                // Decrement counts
+                firestore.collection("users").document(profile.id)
+                    .updateData(["followersCount": FieldValue.increment(Int64(-1))])
+                firestore.collection("users").document(uid)
+                    .updateData(["followingCount": FieldValue.increment(Int64(-1))])
+                isFollowing = false
+                followersCount = max(0, followersCount - 1)
+            } else {
+                let followData: [String: Any] = [
+                    "follower": uid,
+                    "following": profile.id,
+                    "createdAt": FieldValue.serverTimestamp()
+                ]
+                try await followRef.setData(followData)
+                // Increment counts
+                firestore.collection("users").document(profile.id)
+                    .updateData(["followersCount": FieldValue.increment(Int64(1))])
+                firestore.collection("users").document(uid)
+                    .updateData(["followingCount": FieldValue.increment(Int64(1))])
+                isFollowing = true
+                followersCount += 1
+            }
+        } catch {
+            // Silently fail
+        }
+        isTogglingFollow = false
+    }
+
+    // MARK: - Delete
+
+    private func deleteVideo(_ video: VideoModel) async {
+        do {
+            try await firestore.collection("videos").document(video.id).delete()
+            videos.removeAll { $0.id == video.id }
+            videosCount = max(0, videosCount - 1)
+        } catch {
+            // Silently fail
+        }
+    }
+
+    private func deleteThread(_ thread: ThreadModel) async {
+        do {
+            try await firestore.collection("threads").document(thread.id).delete()
+            threads.removeAll { $0.id == thread.id }
+        } catch {
+            // Silently fail
         }
     }
 }
@@ -297,8 +559,10 @@ private struct EditProfilePlaceholderView: View {
             followersCount: 1200,
             followingCount: 340,
             videosCount: 24,
+            isPrivate: false,
             createdAt: Date()
         ))
     }
     .environmentObject(AuthViewModel())
 }
+
