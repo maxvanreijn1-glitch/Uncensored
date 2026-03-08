@@ -25,7 +25,9 @@ final class AuthViewModel: ObservableObject {
     private let auth = FirebaseManager.shared.auth
     private let firestore = FirebaseManager.shared.firestore
     private let storage = FirebaseManager.shared.storage
-    private var authStateHandle: AuthStateDidChangeListenerHandle?
+    // nonisolated(unsafe) so that deinit can safely remove the listener
+    // without crossing actor isolation boundaries.
+    nonisolated(unsafe) private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
         listenToAuthState()
@@ -101,6 +103,10 @@ final class AuthViewModel: ObservableObject {
             "bio": bio,
         ]
         try await docRef.setData(profileFields, merge: true)
+        if let avatarURL = uploadedAvatarURL {
+            updateData["avatarURL"] = avatarURL
+        }
+        try await docRef.setData(updateData, merge: true)
 
         // Transition to signed-in state right away — don't wait for the avatar upload.
         let snapshot = try await docRef.getDocument()
