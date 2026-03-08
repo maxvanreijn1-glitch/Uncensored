@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 /// Twitter/Threads-style text feed with real Firestore pagination.
 struct ThreadsFeedView: View {
@@ -63,17 +64,6 @@ struct ThreadsFeedView: View {
                     }
                     .padding()
                 }
-                VStack(spacing: 16) {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
-                    Text("No threads yet")
-                        .font(.title3.bold())
-                    Text("Be the first to post a thread!")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }

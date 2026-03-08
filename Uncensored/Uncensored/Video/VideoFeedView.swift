@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Combine
 
 /// TikTok-style vertical full-screen video feed.
 /// Loads videos from Firestore with infinite scroll pagination.
