@@ -499,9 +499,9 @@ struct ProfileView: View {
             if isFollowing {
                 try await followRef.delete()
                 // Decrement counts
-                firestore.collection("users").document(profile.id)
+                try await firestore.collection("users").document(profile.id)
                     .updateData(["followersCount": FieldValue.increment(Int64(-1))])
-                firestore.collection("users").document(uid)
+                try await firestore.collection("users").document(uid)
                     .updateData(["followingCount": FieldValue.increment(Int64(-1))])
                 isFollowing = false
                 followersCount = max(0, followersCount - 1)
@@ -513,9 +513,9 @@ struct ProfileView: View {
                 ]
                 try await followRef.setData(followData)
                 // Increment counts
-                firestore.collection("users").document(profile.id)
+                try await firestore.collection("users").document(profile.id)
                     .updateData(["followersCount": FieldValue.increment(Int64(1))])
-                firestore.collection("users").document(uid)
+                try await firestore.collection("users").document(uid)
                     .updateData(["followingCount": FieldValue.increment(Int64(1))])
                 isFollowing = true
                 followersCount += 1

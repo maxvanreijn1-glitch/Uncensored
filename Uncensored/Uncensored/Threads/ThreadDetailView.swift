@@ -17,7 +17,7 @@ struct ThreadDetailView: View {
 
     init(thread: ThreadModel) {
         self.thread = thread
-        _repliesCount = State(initialValue: thread.repliesCount)
+        _repliesCount = State(wrappedValue: thread.repliesCount)
     }
 
     var body: some View {
