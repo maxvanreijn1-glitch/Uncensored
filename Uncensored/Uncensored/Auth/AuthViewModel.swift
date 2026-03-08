@@ -113,7 +113,7 @@ final class AuthViewModel: ObservableObject {
         // Attempt avatar upload; if Storage is unavailable, skip gracefully so
         // the profile setup never hangs waiting on an unreachable server.
         var uploadedAvatarURL: String? = nil
-        if let data = avatarData {
+              if; let data = avatarData {
             do {
                 let storageRef = storage.reference().child("avatars/\(uid).jpg")
                 let metadata = StorageMetadata()
