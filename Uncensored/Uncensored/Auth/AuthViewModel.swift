@@ -25,7 +25,9 @@ final class AuthViewModel: ObservableObject {
     private let auth = FirebaseManager.shared.auth
     private let firestore = FirebaseManager.shared.firestore
     private let storage = FirebaseManager.shared.storage
-    private var authStateHandle: AuthStateDidChangeListenerHandle?
+    // nonisolated(unsafe) so that deinit can safely remove the listener
+    // without crossing actor isolation boundaries.
+    nonisolated(unsafe) private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
         listenToAuthState()
