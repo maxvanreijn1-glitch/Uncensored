@@ -69,6 +69,9 @@ final class AuthViewModel: ObservableObject {
                     authState = .signedIn(profile: profile)
                 }
             } else {
+                // First login – create a stub document and wait for it to succeed
+                let stub = UserProfile.stub(uid: uid)
+                try await docRef.setData(from: stub)
                 // First login – create a stub document so setData(merge:) can later update it.
                 let stub = UserProfile.stub(uid: uid)
                 // The Codable setData overload is synchronous (fire-and-forget); the write is
@@ -77,7 +80,7 @@ final class AuthViewModel: ObservableObject {
                 authState = .needsUsername(uid: uid)
             }
         } catch {
-            // On error, default to needing username setup
+            // On error, default to needing username setup so the user can try again
             authState = .needsUsername(uid: uid)
         }
     }
@@ -91,6 +94,8 @@ final class AuthViewModel: ObservableObject {
         avatarData: Data?
     ) async throws {
         guard case .needsUsername(let uid) = authState else {
+            throw ProfileSaveError.invalidState
+        }
             throw NSError(
                 domain: "ProfileSetup",
                 code: -1,
@@ -121,6 +126,7 @@ final class AuthViewModel: ObservableObject {
             }
         }
 
+        // Write all profile fields to Firestore, merging with existing doc
         // Write all profile fields to Firestore.
         // setData(merge:) creates the document if it doesn't yet exist, unlike updateData.
         let docRef = firestore.collection("users").document(uid)
@@ -133,6 +139,7 @@ final class AuthViewModel: ObservableObject {
         if let avatarURL = uploadedAvatarURL {
             profileData["avatarURL"] = avatarURL
         }
+        // Use setData(merge: true) so it works even if the stub document write failed
         try await docRef.setData(profileData, merge: true)
         try await docRef.setData(updateData, merge: true)
 
@@ -168,6 +175,16 @@ final class AuthViewModel: ObservableObject {
                 } catch {
                     // Non-critical: avatar upload failed silently.
                 }
+            }
+        }
+    }
+
+    enum ProfileSaveError: LocalizedError {
+        case invalidState
+        var errorDescription: String? {
+            switch self {
+            case .invalidState:
+                return "Profile setup is unavailable right now. Please try again."
             }
         }
     }
