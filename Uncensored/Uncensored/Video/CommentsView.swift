@@ -170,7 +170,7 @@ struct CommentsView: View {
                 .collection("comments").document(commentId)
                 .setData(data)
             // Update comments count
-            firestore.collection("videos").document(videoId)
+            try await firestore.collection("videos").document(videoId)
                 .updateData(["commentsCount": FieldValue.increment(Int64(1))])
             commentText = ""
             comments.append(comment)
@@ -187,7 +187,7 @@ struct CommentsView: View {
                 .collection("videos").document(videoId)
                 .collection("comments").document(comment.id)
                 .delete()
-            firestore.collection("videos").document(videoId)
+            try await firestore.collection("videos").document(videoId)
                 .updateData(["commentsCount": FieldValue.increment(Int64(-1))])
             comments.removeAll { $0.id == comment.id }
             commentsCount = max(0, commentsCount - 1)

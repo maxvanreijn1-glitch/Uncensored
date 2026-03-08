@@ -173,7 +173,7 @@ struct RepliesView: View {
                 .collection("replies").document(replyId)
                 .setData(data)
             // Update replies count
-            firestore.collection("threads").document(threadId)
+            try await firestore.collection("threads").document(threadId)
                 .updateData(["repliesCount": FieldValue.increment(Int64(1))])
             replyText = ""
             replies.append(reply)
@@ -190,7 +190,7 @@ struct RepliesView: View {
                 .collection("threads").document(threadId)
                 .collection("replies").document(reply.id)
                 .delete()
-            firestore.collection("threads").document(threadId)
+            try await firestore.collection("threads").document(threadId)
                 .updateData(["repliesCount": FieldValue.increment(Int64(-1))])
             replies.removeAll { $0.id == reply.id }
             repliesCount = max(0, repliesCount - 1)
