@@ -157,6 +157,16 @@ final class AuthViewModel: ObservableObject {
         try await saveProfile(username: username, displayName: "", bio: "", avatarData: nil)
     }
 
+    // MARK: - Convenience accessors
+
+    /// The username of the currently signed-in user, or empty string if not available.
+    var currentUsername: String {
+        if case .signedIn(let profile) = authState, !profile.username.isEmpty {
+            return profile.username
+        }
+        return ""
+    }
+
     // MARK: - Sign out
 
     func signOut() {

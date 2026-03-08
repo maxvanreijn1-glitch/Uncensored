@@ -69,6 +69,7 @@ private struct InlineCreateThreadView: View {
 
     var onPosted: () -> Void
 
+    @EnvironmentObject private var authVM: AuthViewModel
     @State private var bodyText = ""
     @State private var isPosting = false
     @State private var errorMessage: String?
@@ -133,13 +134,14 @@ private struct InlineCreateThreadView: View {
             errorMessage = "You must be signed in."
             return
         }
+        let authorUsername = authVM.currentUsername.isEmpty ? "anonymous" : authVM.currentUsername
         isPosting = true
         errorMessage = nil
         let threadId = UUID().uuidString
         let thread = ThreadModel(
             id: threadId,
             authorId: uid,
-            authorUsername: Auth.auth().currentUser?.displayName ?? "anonymous",
+            authorUsername: authorUsername,
             body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
             likesCount: 0,
             repliesCount: 0,

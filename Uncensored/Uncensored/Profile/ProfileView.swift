@@ -110,12 +110,16 @@ struct ProfileView: View {
     }
 
     private var avatarPlaceholder: some View {
+        avatarView(size: 88, font: .largeTitle.bold())
+    }
+
+    private func avatarView(size: CGFloat, font: Font) -> some View {
         Circle()
             .fill(Color.accentColor.opacity(0.3))
-            .frame(width: 88, height: 88)
+            .frame(width: size, height: size)
             .overlay(
                 Text(profile.username.isEmpty ? "?" : profile.username.prefix(1).uppercased())
-                    .font(.largeTitle.bold())
+                    .font(font)
             )
     }
 
@@ -213,9 +217,7 @@ struct ProfileView: View {
 
     private func threadPlaceholderRow(index: Int) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            avatarPlaceholder
-                .frame(width: 36, height: 36)
-                .font(.subheadline)
+            avatarView(size: 36, font: .subheadline.bold())
             VStack(alignment: .leading, spacing: 4) {
                 Text("@\(profile.username)")
                     .font(.subheadline.bold())

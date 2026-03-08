@@ -18,12 +18,14 @@ final class VideoUploadService {
     ///   - fileURL: Local file URL of the video to upload.
     ///   - caption: User-provided caption.
     ///   - authorId: The UID of the authenticated user.
+    ///   - authorUsername: The Firestore username of the author.
     ///   - progress: Optional closure called with upload progress (0.0 – 1.0).
     ///   - completion: Called when finished, with the new `VideoModel` or an error.
     func uploadVideo(
         fileURL: URL,
         caption: String,
         authorId: String,
+        authorUsername: String,
         progress: ((Double) -> Void)? = nil,
         completion: @escaping (Result<VideoModel, Error>) -> Void
     ) {
@@ -51,6 +53,7 @@ final class VideoUploadService {
                     videoURL: downloadURL.absoluteString,
                     caption: caption,
                     authorId: authorId,
+                    authorUsername: authorUsername,
                     completion: completion
                 )
             }
@@ -67,11 +70,13 @@ final class VideoUploadService {
         videoURL: String,
         caption: String,
         authorId: String,
+        authorUsername: String,
         completion: @escaping (Result<VideoModel, Error>) -> Void
     ) {
         let model = VideoModel(
             id: videoId,
             authorId: authorId,
+            authorUsername: authorUsername,
             videoURL: videoURL,
             thumbnailURL: nil,
             caption: caption,

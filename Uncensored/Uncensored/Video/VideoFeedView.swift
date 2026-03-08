@@ -96,7 +96,7 @@ struct VideoFeedView: View {
 
     private func videoInfo(video: VideoModel) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("@\(video.authorId)")
+            Text("@\(video.authorUsername.isEmpty ? video.authorId : video.authorUsername)")
                 .font(.headline.bold())
                 .foregroundColor(.white)
                 .shadow(radius: 2)
