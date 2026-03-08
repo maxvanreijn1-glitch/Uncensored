@@ -148,6 +148,63 @@ final class AuthViewModel: ObservableObject {
             }
         }
     }
+
+    // MARK: - Profile update (edit existing profile)
+
+    func updateProfile(
+        displayName: String,
+        bio: String,
+        isPrivate: Bool,
+        avatarData: Data?
+    ) async throws {
+        guard case .signedIn(var profile) = authState else {
+            throw ProfileSaveError.invalidState
+        }
+        let uid = profile.id
+        let docRef = firestore.collection("users").document(uid)
+
+        let profileData: [String: Any] = [
+            "displayName": displayName,
+            "bio": bio,
+            "isPrivate": isPrivate,
+        ]
+        try await docRef.setData(profileData, merge: true)
+
+        // Update the in-memory profile immediately.
+        profile.displayName = displayName
+        profile.bio = bio
+        profile.isPrivate = isPrivate
+        authState = .signedIn(profile: profile)
+
+        // Upload avatar in the background — does NOT block profile completion.
+        if let data = avatarData {
+            Task { @MainActor in
+                do {
+                    let storageRef = storage.reference().child("avatars/\(uid).jpg")
+                    let metadata = StorageMetadata()
+                    metadata.contentType = "image/jpeg"
+                    _ = try await storageRef.putDataAsync(data, metadata: metadata)
+                    let downloadURL = try await storageRef.downloadURL()
+                    let avatarURL = downloadURL.absoluteString
+                    try? await docRef.setData(["avatarURL": avatarURL], merge: true)
+                    if case .signedIn(var currentProfile) = self.authState, currentProfile.id == uid {
+                        currentProfile.avatarURL = avatarURL
+                        self.authState = .signedIn(profile: currentProfile)
+                    }
+                } catch {
+                    print("Avatar upload failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    // MARK: - Sign out
+
+    func signOut() {
+        try? auth.signOut()
+        // Update state immediately so the UI responds without waiting for the listener.
+        authState = .signedOut
+    }
 }
 
 enum ProfileSaveError: LocalizedError {
