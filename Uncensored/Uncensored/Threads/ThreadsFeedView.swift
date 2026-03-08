@@ -102,7 +102,7 @@ struct ThreadRowView: View {
                         }
                     } label: {
                         Label(
-                            "\(thread.likesCount + (isLiked ? 1 : 0))",
+                            "\(thread.likesCount)",
                             systemImage: isLiked ? "heart.fill" : "heart"
                         )
                         .font(.caption)

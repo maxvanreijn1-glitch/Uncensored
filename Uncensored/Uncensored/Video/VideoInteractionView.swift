@@ -43,7 +43,7 @@ struct VideoInteractionView: View {
             // Like
             interactionButton(
                 icon: isLiked ? "heart.fill" : "heart",
-                label: "\(video.likesCount + (isLiked ? 1 : 0))",
+                label: "\(video.likesCount)",
                 color: isLiked ? .red : .white,
                 action: onLike
             )

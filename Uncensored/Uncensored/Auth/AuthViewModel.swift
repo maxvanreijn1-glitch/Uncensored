@@ -108,7 +108,7 @@ final class AuthViewModel: ObservableObject {
         if let avatarURL = uploadedAvatarURL {
             updateData["avatarURL"] = avatarURL
         }
-        try await docRef.updateData(updateData)
+        try await docRef.setData(updateData, merge: true)
 
         let snapshot = try await docRef.getDocument()
         if let profile = try? snapshot.data(as: UserProfile.self) {

@@ -41,7 +41,7 @@ struct UsernameSetupView: View {
     }
 
     private var isFormValid: Bool {
-        usernameValidation == .valid && !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        usernameValidation == .valid
     }
 
     // MARK: - Body
