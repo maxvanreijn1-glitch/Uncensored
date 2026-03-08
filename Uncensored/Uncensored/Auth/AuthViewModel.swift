@@ -25,7 +25,9 @@ final class AuthViewModel: ObservableObject {
     private let auth = FirebaseManager.shared.auth
     private let firestore = FirebaseManager.shared.firestore
     private let storage = FirebaseManager.shared.storage
-    private var authStateHandle: AuthStateDidChangeListenerHandle?
+    // nonisolated(unsafe) lets deinit (which is always nonisolated) safely access
+    // this handle under the SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor build setting.
+    nonisolated(unsafe) private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
         listenToAuthState()
@@ -33,7 +35,8 @@ final class AuthViewModel: ObservableObject {
 
     deinit {
         if let handle = authStateHandle {
-            auth.removeStateDidChangeListener(handle)
+            // Use Auth.auth() directly so deinit doesn't need to hop to the main actor.
+            Auth.auth().removeStateDidChangeListener(handle)
         }
     }
 
@@ -64,8 +67,10 @@ final class AuthViewModel: ObservableObject {
                     authState = .signedIn(profile: profile)
                 }
             } else {
-                // First login – create a stub document
+                // First login – create a stub document so setData(merge:) can later update it.
                 let stub = UserProfile.stub(uid: uid)
+                // The Codable setData overload is synchronous (fire-and-forget); the write is
+                // enqueued locally and committed to the server in the background by the SDK.
                 try? docRef.setData(from: stub)
                 authState = .needsUsername(uid: uid)
             }
@@ -85,28 +90,34 @@ final class AuthViewModel: ObservableObject {
     ) async throws {
         guard case .needsUsername(let uid) = authState else { return }
 
-        // Upload avatar first if provided
+        // Attempt avatar upload; if Storage is unavailable, skip gracefully so
+        // the profile setup never hangs waiting on an unreachable server.
         var uploadedAvatarURL: String? = nil
         if let data = avatarData {
-            let storageRef = storage.reference().child("avatars/\(uid).jpg")
-            let metadata = StorageMetadata()
-            metadata.contentType = "image/jpeg"
-            _ = try await storageRef.putDataAsync(data, metadata: metadata)
-            let downloadURL = try await storageRef.downloadURL()
-            uploadedAvatarURL = downloadURL.absoluteString
+            do {
+                let storageRef = storage.reference().child("avatars/\(uid).jpg")
+                let metadata = StorageMetadata()
+                metadata.contentType = "image/jpeg"
+                _ = try await storageRef.putDataAsync(data, metadata: metadata)
+                let downloadURL = try await storageRef.downloadURL()
+                uploadedAvatarURL = downloadURL.absoluteString
+            } catch {
+                // Avatar upload failed – continue without it rather than blocking setup.
+            }
         }
 
-        // Write all profile fields to Firestore
+        // Write all profile fields to Firestore.
+        // setData(merge:) creates the document if it doesn't yet exist, unlike updateData.
         let docRef = firestore.collection("users").document(uid)
-        var updateData: [String: Any] = [
+        var profileData: [String: Any] = [
             "username": username,
             "displayName": displayName,
             "bio": bio,
         ]
         if let avatarURL = uploadedAvatarURL {
-            updateData["avatarURL"] = avatarURL
+            profileData["avatarURL"] = avatarURL
         }
-        try await docRef.updateData(updateData)
+        try await docRef.setData(profileData, merge: true)
 
         let snapshot = try await docRef.getDocument()
         if let profile = try? snapshot.data(as: UserProfile.self) {
