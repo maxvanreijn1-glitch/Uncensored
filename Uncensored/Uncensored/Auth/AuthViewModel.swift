@@ -27,6 +27,8 @@ final class AuthViewModel: ObservableObject {
     private let storage = FirebaseManager.shared.storage
     // nonisolated(unsafe) lets deinit (which is always nonisolated) safely access
     // this handle under the SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor build setting.
+    // nonisolated(unsafe) so that deinit can safely remove the listener
+    // without crossing actor isolation boundaries.
     nonisolated(unsafe) private var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
@@ -118,6 +120,7 @@ final class AuthViewModel: ObservableObject {
             profileData["avatarURL"] = avatarURL
         }
         try await docRef.setData(profileData, merge: true)
+        try await docRef.setData(updateData, merge: true)
 
         let snapshot = try await docRef.getDocument()
         if let profile = try? snapshot.data(as: UserProfile.self) {
