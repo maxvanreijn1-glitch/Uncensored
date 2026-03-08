@@ -29,6 +29,7 @@ final class VideoFeedViewModel: ObservableObject {
         lastDocument = nil
         hasMore = true
         videos = []
+        await loadLikedIDs()
         await fetchPage()
         isLoading = false
     }
@@ -42,21 +43,42 @@ final class VideoFeedViewModel: ObservableObject {
 
     func toggleLike(for video: VideoModel) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        if likedVideoIDs.contains(video.id) {
+        let wasLiked = likedVideoIDs.contains(video.id)
+        if wasLiked {
             likedVideoIDs.remove(video.id)
             updateLikeCount(videoId: video.id, delta: -1)
         } else {
             likedVideoIDs.insert(video.id)
             updateLikeCount(videoId: video.id, delta: 1)
         }
-        // Persist like to Firestore
+        // Persist like to videos/{videoId}/likes/{uid} per spec
         let likeRef = firestore
+            .collection("videos").document(video.id)
+            .collection("likes").document(uid)
+        // Also track in user's liked list for profile tab
+        let userLikeRef = firestore
             .collection("users").document(uid)
-            .collection("likes").document(video.id)
-        if likedVideoIDs.contains(video.id) {
-            likeRef.setData(["videoId": video.id, "likedAt": Date()])
+            .collection("videoLikes").document(video.id)
+        // Update the video's likesCount field atomically
+        let videoRef = firestore.collection("videos").document(video.id)
+        if !wasLiked {
+            likeRef.setData(["uid": uid, "likedAt": FieldValue.serverTimestamp()])
+            userLikeRef.setData(["videoId": video.id, "likedAt": FieldValue.serverTimestamp()])
+            videoRef.updateData(["likesCount": FieldValue.increment(Int64(1))])
         } else {
             likeRef.delete()
+            userLikeRef.delete()
+            videoRef.updateData(["likesCount": FieldValue.increment(Int64(-1))])
+        }
+    }
+
+    func deleteVideo(_ video: VideoModel) async {
+        guard let uid = Auth.auth().currentUser?.uid, uid == video.authorId else { return }
+        do {
+            try await firestore.collection("videos").document(video.id).delete()
+            videos.removeAll { $0.id == video.id }
+        } catch {
+            // Handle error silently
         }
     }
 
@@ -75,6 +97,19 @@ final class VideoFeedViewModel: ObservableObject {
     private func updateLikeCount(videoId: String, delta: Int) {
         if let index = videos.firstIndex(where: { $0.id == videoId }) {
             videos[index].likesCount = max(0, videos[index].likesCount + delta)
+        }
+    }
+
+    private func loadLikedIDs() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        do {
+            let snapshot = try await firestore
+                .collection("users").document(uid)
+                .collection("videoLikes")
+                .getDocuments()
+            likedVideoIDs = Set(snapshot.documents.map { $0.documentID })
+        } catch {
+            // Not critical
         }
     }
 

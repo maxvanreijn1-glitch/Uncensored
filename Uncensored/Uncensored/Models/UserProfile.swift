@@ -14,6 +14,7 @@ struct UserProfile: Identifiable, Codable {
     var followersCount: Int
     var followingCount: Int
     var videosCount: Int
+    var isPrivate: Bool
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -25,6 +26,7 @@ struct UserProfile: Identifiable, Codable {
         case followersCount
         case followingCount
         case videosCount
+        case isPrivate
         case createdAt
     }
 
@@ -39,6 +41,7 @@ struct UserProfile: Identifiable, Codable {
             followersCount: 0,
             followingCount: 0,
             videosCount: 0,
+            isPrivate: false,
             createdAt: Date()
         )
     }

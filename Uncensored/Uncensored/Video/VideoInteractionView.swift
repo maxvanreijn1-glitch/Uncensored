@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-/// Right-side interaction panel shown over a video (like, comment, share, follow).
+/// Right-side interaction panel shown over a video (like, comment, share, follow, delete).
 struct VideoInteractionView: View {
 
     let video: VideoModel
@@ -13,30 +13,34 @@ struct VideoInteractionView: View {
     let onComment: () -> Void
     let onShare: () -> Void
     let onFollow: () -> Void
+    var isOwnContent: Bool = false
+    var onDelete: (() -> Void)? = nil
 
     @Binding var isLiked: Bool
 
     var body: some View {
         VStack(spacing: 20) {
-            // Follow (avatar with + badge)
-            Button(action: onFollow) {
-                ZStack(alignment: .bottom) {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .foregroundColor(.white)
-                        )
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 16, height: 16)
-                        .overlay(
-                            Image(systemName: "plus")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
-                        )
-                        .offset(y: 8)
+            // Follow (avatar with + badge) – only shown for others' content
+            if !isOwnContent {
+                Button(action: onFollow) {
+                    ZStack(alignment: .bottom) {
+                        Circle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.white)
+                            )
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 16, height: 16)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
+                            .offset(y: 8)
+                    }
                 }
             }
 
@@ -63,6 +67,22 @@ struct VideoInteractionView: View {
                 color: .white,
                 action: onShare
             )
+
+            // Delete – only shown for own content
+            if isOwnContent, let onDelete {
+                Button(action: onDelete) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 24))
+                            .foregroundColor(.red)
+                            .shadow(radius: 2)
+                        Text("Delete")
+                            .font(.caption.bold())
+                            .foregroundColor(.red)
+                            .shadow(radius: 2)
+                    }
+                }
+            }
         }
         .padding(.trailing, 12)
         .padding(.bottom, 80)
@@ -88,3 +108,4 @@ struct VideoInteractionView: View {
         }
     }
 }
+

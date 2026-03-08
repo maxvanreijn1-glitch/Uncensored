@@ -29,6 +29,7 @@ final class ThreadsFeedViewModel: ObservableObject {
         lastDocument = nil
         hasMore = true
         threads = []
+        await loadLikedIDs()
         await fetchPage()
         isLoading = false
     }
@@ -42,20 +43,41 @@ final class ThreadsFeedViewModel: ObservableObject {
 
     func toggleLike(for thread: ThreadModel) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        if likedThreadIDs.contains(thread.id) {
+        let wasLiked = likedThreadIDs.contains(thread.id)
+        if wasLiked {
             likedThreadIDs.remove(thread.id)
             updateLikeCount(threadId: thread.id, delta: -1)
         } else {
             likedThreadIDs.insert(thread.id)
             updateLikeCount(threadId: thread.id, delta: 1)
         }
+        // Persist like to threads/{threadId}/likes/{uid} per spec
         let likeRef = firestore
+            .collection("threads").document(thread.id)
+            .collection("likes").document(uid)
+        // Also track in user's liked list
+        let userLikeRef = firestore
             .collection("users").document(uid)
             .collection("threadLikes").document(thread.id)
-        if likedThreadIDs.contains(thread.id) {
-            likeRef.setData(["threadId": thread.id, "likedAt": Date()])
+        let threadRef = firestore.collection("threads").document(thread.id)
+        if !wasLiked {
+            likeRef.setData(["uid": uid, "likedAt": FieldValue.serverTimestamp()])
+            userLikeRef.setData(["threadId": thread.id, "likedAt": FieldValue.serverTimestamp()])
+            threadRef.updateData(["likesCount": FieldValue.increment(Int64(1))])
         } else {
             likeRef.delete()
+            userLikeRef.delete()
+            threadRef.updateData(["likesCount": FieldValue.increment(Int64(-1))])
+        }
+    }
+
+    func deleteThread(_ thread: ThreadModel) async {
+        guard let uid = Auth.auth().currentUser?.uid, uid == thread.authorId else { return }
+        do {
+            try await firestore.collection("threads").document(thread.id).delete()
+            threads.removeAll { $0.id == thread.id }
+        } catch {
+            // Handle error silently
         }
     }
 
@@ -74,6 +96,19 @@ final class ThreadsFeedViewModel: ObservableObject {
     private func updateLikeCount(threadId: String, delta: Int) {
         if let index = threads.firstIndex(where: { $0.id == threadId }) {
             threads[index].likesCount = max(0, threads[index].likesCount + delta)
+        }
+    }
+
+    private func loadLikedIDs() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        do {
+            let snapshot = try await firestore
+                .collection("users").document(uid)
+                .collection("threadLikes")
+                .getDocuments()
+            likedThreadIDs = Set(snapshot.documents.map { $0.documentID })
+        } catch {
+            // Not critical
         }
     }
 

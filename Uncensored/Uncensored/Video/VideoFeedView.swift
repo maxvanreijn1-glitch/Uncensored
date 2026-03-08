@@ -5,13 +5,20 @@
 
 import SwiftUI
 import Combine
+import UIKit
 
 /// TikTok-style vertical full-screen video feed.
 /// Loads videos from Firestore with infinite scroll pagination.
 struct VideoFeedView: View {
 
     @StateObject private var viewModel = VideoFeedViewModel()
+    @EnvironmentObject private var authVM: AuthViewModel
     @State private var currentIndex = 0
+    @State private var showCommentsForVideo: VideoModel?
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var videoToDelete: VideoModel?
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         ZStack {
@@ -29,6 +36,30 @@ struct VideoFeedView: View {
             }
         }
         .task { await viewModel.loadInitial() }
+        .sheet(item: $showCommentsForVideo) { video in
+            let binding = Binding<Int>(
+                get: {
+                    viewModel.videos.first(where: { $0.id == video.id })?.commentsCount ?? video.commentsCount
+                },
+                set: { newVal in
+                    if let idx = viewModel.videos.firstIndex(where: { $0.id == video.id }) {
+                        viewModel.videos[idx].commentsCount = newVal
+                    }
+                }
+            )
+            CommentsView(videoId: video.id, commentsCount: binding)
+                .environmentObject(authVM)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: shareItems)
+        }
+        .confirmationDialog("Delete this video?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let video = videoToDelete {
+                    Task { await viewModel.deleteVideo(video) }
+                }
+            }
+        }
     }
 
     // MARK: - Feed pager
@@ -84,10 +115,21 @@ struct VideoFeedView: View {
                             viewModel.toggleLike(for: video)
                         }
                     },
-                    onComment: { },
-                    onShare: { },
+                    onComment: {
+                        showCommentsForVideo = video
+                    },
+                    onShare: {
+                        let text = "\(video.caption.isEmpty ? "Check out this video" : video.caption)\n\(video.videoURL)"
+                        shareItems = [text]
+                        showShareSheet = true
+                    },
                     onFollow: { },
-                    isLiked: viewModel.likeBinding(for: video)
+                    isLiked: viewModel.likeBinding(for: video),
+                    isOwnContent: video.authorId == authVM.currentUserId,
+                    onDelete: {
+                        videoToDelete = video
+                        showDeleteConfirm = true
+                    }
                 )
             }
             .padding(.horizontal, 12)
@@ -138,6 +180,20 @@ struct VideoFeedView: View {
     }
 }
 
+// MARK: - ShareSheet (UIActivityViewController wrapper)
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
 #Preview {
     VideoFeedView()
+        .environmentObject(AuthViewModel())
 }
+
