@@ -75,7 +75,7 @@ struct VideoCreateView: View {
                 .cornerRadius(16)
                 .padding(.horizontal, 24)
             }
-            .onChange(of: selectedItem) { item in
+            .onChange(of: selectedItem) { _, item in
                 Task { await loadVideo(from: item) }
             }
 

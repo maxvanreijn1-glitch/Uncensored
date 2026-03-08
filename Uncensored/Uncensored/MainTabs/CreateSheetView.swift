@@ -86,7 +86,7 @@ private struct InlineCreateThreadView: View {
                 }
                 TextEditor(text: $bodyText)
                     .frame(minHeight: 160)
-                    .onChange(of: bodyText) { value in
+                    .onChange(of: bodyText) { _, value in
                         if value.count > maxLength {
                             bodyText = String(value.prefix(maxLength))
                         }

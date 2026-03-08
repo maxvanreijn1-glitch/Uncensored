@@ -25,6 +25,8 @@ final class AuthViewModel: ObservableObject {
     private let auth = FirebaseManager.shared.auth
     private let firestore = FirebaseManager.shared.firestore
     private let storage = FirebaseManager.shared.storage
+    // nonisolated(unsafe) lets deinit (which is always nonisolated) safely access
+    // this handle under the SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor build setting.
     // nonisolated(unsafe) so that deinit can safely remove the listener
     // without crossing actor isolation boundaries.
     nonisolated(unsafe) private var authStateHandle: AuthStateDidChangeListenerHandle?
@@ -35,7 +37,8 @@ final class AuthViewModel: ObservableObject {
 
     deinit {
         if let handle = authStateHandle {
-            auth.removeStateDidChangeListener(handle)
+            // Use Auth.auth() directly so deinit doesn't need to hop to the main actor.
+            Auth.auth().removeStateDidChangeListener(handle)
         }
     }
 
@@ -69,6 +72,11 @@ final class AuthViewModel: ObservableObject {
                 // First login – create a stub document and wait for it to succeed
                 let stub = UserProfile.stub(uid: uid)
                 try await docRef.setData(from: stub)
+                // First login – create a stub document so setData(merge:) can later update it.
+                let stub = UserProfile.stub(uid: uid)
+                // The Codable setData overload is synchronous (fire-and-forget); the write is
+                // enqueued locally and committed to the server in the background by the SDK.
+                try? docRef.setData(from: stub)
                 authState = .needsUsername(uid: uid)
             }
         } catch {
@@ -88,41 +96,86 @@ final class AuthViewModel: ObservableObject {
         guard case .needsUsername(let uid) = authState else {
             throw ProfileSaveError.invalidState
         }
+            throw NSError(
+                domain: "ProfileSetup",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid authentication state. Please sign out and try again."]
+            )
+        }
 
-        // Upload avatar first if provided
+        let docRef = firestore.collection("users").document(uid)
+
+        // Write text profile fields immediately.
+        // Use setData(merge:) so the call succeeds whether the document exists or not.
+        let profileFields: [String: Any] = [
+        guard case .needsUsername(let uid) = authState else { return }
+
+        // Attempt avatar upload; if Storage is unavailable, skip gracefully so
+        // the profile setup never hangs waiting on an unreachable server.
         var uploadedAvatarURL: String? = nil
         if let data = avatarData {
-            let storageRef = storage.reference().child("avatars/\(uid).jpg")
-            let metadata = StorageMetadata()
-            metadata.contentType = "image/jpeg"
-            _ = try await storageRef.putDataAsync(data, metadata: metadata)
-            let downloadURL = try await storageRef.downloadURL()
-            uploadedAvatarURL = downloadURL.absoluteString
+            do {
+                let storageRef = storage.reference().child("avatars/\(uid).jpg")
+                let metadata = StorageMetadata()
+                metadata.contentType = "image/jpeg"
+                _ = try await storageRef.putDataAsync(data, metadata: metadata)
+                let downloadURL = try await storageRef.downloadURL()
+                uploadedAvatarURL = downloadURL.absoluteString
+            } catch {
+                // Avatar upload failed – continue without it rather than blocking setup.
+            }
         }
 
         // Write all profile fields to Firestore, merging with existing doc
+        // Write all profile fields to Firestore.
+        // setData(merge:) creates the document if it doesn't yet exist, unlike updateData.
         let docRef = firestore.collection("users").document(uid)
-        var updateData: [String: Any] = [
+        var profileData: [String: Any] = [
             "username": username,
             "displayName": displayName,
             "bio": bio,
         ]
+        try await docRef.setData(profileFields, merge: true)
         if let avatarURL = uploadedAvatarURL {
-            updateData["avatarURL"] = avatarURL
+            profileData["avatarURL"] = avatarURL
         }
         // Use setData(merge: true) so it works even if the stub document write failed
+        try await docRef.setData(profileData, merge: true)
         try await docRef.setData(updateData, merge: true)
 
+        // Transition to signed-in state right away — don't wait for the avatar upload.
         let snapshot = try await docRef.getDocument()
-        if let profile = try? snapshot.data(as: UserProfile.self) {
+        if let profile = try? snapshot.data(as: UserProfile.self), !profile.username.isEmpty {
             authState = .signedIn(profile: profile)
         } else {
             var stub = UserProfile.stub(uid: uid)
             stub.username = username
             stub.displayName = displayName
             stub.bio = bio
-            stub.avatarURL = uploadedAvatarURL
             authState = .signedIn(profile: stub)
+        }
+
+        // Upload avatar in the background — does NOT block profile completion.
+        if let data = avatarData {
+            Task { @MainActor in
+                do {
+                    let storageRef = storage.reference().child("avatars/\(uid).jpg")
+                    let metadata = StorageMetadata()
+                    metadata.contentType = "image/jpeg"
+                    _ = try await storageRef.putDataAsync(data, metadata: metadata)
+                    let downloadURL = try await storageRef.downloadURL()
+                    let avatarURL = downloadURL.absoluteString
+                    // Use setData(merge:) so the update works even if prior writes are incomplete.
+                    try? await docRef.setData(["avatarURL": avatarURL], merge: true)
+                    // Patch the in-memory profile with the uploaded URL.
+                    if case .signedIn(var currentProfile) = authState, currentProfile.id == uid {
+                        currentProfile.avatarURL = avatarURL
+                        authState = .signedIn(profile: currentProfile)
+                    }
+                } catch {
+                    // Non-critical: avatar upload failed silently.
+                }
+            }
         }
     }
 
