@@ -64,13 +64,13 @@ final class AuthViewModel: ObservableObject {
                     authState = .signedIn(profile: profile)
                 }
             } else {
-                // First login – create a stub document
+                // First login – create a stub document and wait for it to succeed
                 let stub = UserProfile.stub(uid: uid)
-                try? docRef.setData(from: stub)
+                try await docRef.setData(from: stub)
                 authState = .needsUsername(uid: uid)
             }
         } catch {
-            // On error, default to needing username setup
+            // On error, default to needing username setup so the user can try again
             authState = .needsUsername(uid: uid)
         }
     }
@@ -83,7 +83,9 @@ final class AuthViewModel: ObservableObject {
         bio: String,
         avatarData: Data?
     ) async throws {
-        guard case .needsUsername(let uid) = authState else { return }
+        guard case .needsUsername(let uid) = authState else {
+            throw ProfileSaveError.invalidState
+        }
 
         // Upload avatar first if provided
         var uploadedAvatarURL: String? = nil
@@ -96,7 +98,7 @@ final class AuthViewModel: ObservableObject {
             uploadedAvatarURL = downloadURL.absoluteString
         }
 
-        // Write all profile fields to Firestore
+        // Write all profile fields to Firestore, merging with existing doc
         let docRef = firestore.collection("users").document(uid)
         var updateData: [String: Any] = [
             "username": username,
@@ -106,7 +108,8 @@ final class AuthViewModel: ObservableObject {
         if let avatarURL = uploadedAvatarURL {
             updateData["avatarURL"] = avatarURL
         }
-        try await docRef.updateData(updateData)
+        // Use setData(merge: true) so it works even if the stub document write failed
+        try await docRef.setData(updateData, merge: true)
 
         let snapshot = try await docRef.getDocument()
         if let profile = try? snapshot.data(as: UserProfile.self) {
@@ -118,6 +121,16 @@ final class AuthViewModel: ObservableObject {
             stub.bio = bio
             stub.avatarURL = uploadedAvatarURL
             authState = .signedIn(profile: stub)
+        }
+    }
+
+    enum ProfileSaveError: LocalizedError {
+        case invalidState
+        var errorDescription: String? {
+            switch self {
+            case .invalidState:
+                return "Profile setup is unavailable right now. Please try again."
+            }
         }
     }
 

@@ -45,11 +45,26 @@ struct ThreadsFeedView: View {
         .task { await viewModel.loadInitial() }
         .overlay {
             if viewModel.threads.isEmpty && !viewModel.isLoading {
-                ContentUnavailableView(
-                    "No threads yet",
-                    systemImage: "text.bubble",
-                    description: Text("Be the first to post a thread!")
-                )
+                if #available(iOS 17.0, *) {
+                    ContentUnavailableView(
+                        "No threads yet",
+                        systemImage: "text.bubble",
+                        description: Text("Be the first to post a thread!")
+                    )
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "text.bubble")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
+                        Text("No threads yet")
+                            .font(.title3.bold())
+                        Text("Be the first to post a thread!")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                }
             }
         }
     }
