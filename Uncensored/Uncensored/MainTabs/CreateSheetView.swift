@@ -13,6 +13,7 @@ import FirebaseFirestore
 struct CreateSheetView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authVM: AuthViewModel
     @State private var selectedTab: CreateTab = .thread
 
     enum CreateTab: String, CaseIterable {
@@ -46,9 +47,11 @@ struct CreateSheetView: View {
                 switch selectedTab {
                 case .video:
                     VideoCreateView()
+                        .environmentObject(authVM)
                         .id("video")
                 case .thread:
                     InlineCreateThreadView(onPosted: { dismiss() })
+                        .environmentObject(authVM)
                         .id("thread")
                 }
             }
@@ -163,4 +166,6 @@ private struct InlineCreateThreadView: View {
 
 #Preview {
     CreateSheetView()
+        .environmentObject(AuthViewModel())
 }
+
