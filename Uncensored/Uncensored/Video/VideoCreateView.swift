@@ -219,47 +219,6 @@ private struct VideoTransferable: Transferable {
     }
 }
 
-// MARK: - VideoRecorderView (placeholder)
-
-/// Placeholder camera recorder UI. Replace with full AVFoundation implementation.
-struct VideoRecorderView: View {
-
-    var onVideoRecorded: (URL) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 24) {
-                Spacer()
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 72))
-                    .foregroundColor(.white)
-                Text("Camera Recorder")
-                    .font(.title.bold())
-                    .foregroundColor(.white)
-                Text("TODO: Implement AVCaptureSession-based video recorder here.")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                // Simulate a recorded video for development
-                Button("Simulate recording") {
-                    let placeholder = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("placeholder.mp4")
-                    FileManager.default.createFile(atPath: placeholder.path, contents: nil)
-                    onVideoRecorded(placeholder)
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .foregroundColor(.gray)
-                    .padding(.bottom, 40)
-            }
-        }
-    }
-}
 
 #Preview {
     VideoCreateView()
