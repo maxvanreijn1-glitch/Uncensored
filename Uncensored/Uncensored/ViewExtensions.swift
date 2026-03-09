@@ -17,7 +17,7 @@ private struct ValueChangeModifier<T: Equatable>: ViewModifier {
     @State private var isInitial = true
 
     func body(content: Content) -> some View {
-        content.task(id: value) {
+        content.task(id: value) { @MainActor in
             // Skip the first fire which happens on view appear.
             // Subsequent fires mean the value actually changed.
             guard !isInitial else { isInitial = false; return }
