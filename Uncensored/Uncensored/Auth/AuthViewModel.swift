@@ -22,6 +22,12 @@ final class AuthViewModel: ObservableObject {
 
     @Published var authState: AuthState = .loading
 
+    /// Returns the signed-in user's UID, or nil if not signed in.
+    var currentUserId: String? {
+        if case .signedIn(let profile) = authState { return profile.id }
+        return nil
+    }
+
     /// Returns the signed-in user's username, or an empty string if not signed in.
     var currentUsername: String {
         if case .signedIn(let profile) = authState { return profile.username }
