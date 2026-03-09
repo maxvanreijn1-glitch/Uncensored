@@ -43,18 +43,23 @@ final class AuthViewModel: ObservableObject {
     private let auth = FirebaseManager.shared.auth
     private let firestore = FirebaseManager.shared.firestore
     private let storage = FirebaseManager.shared.storage
-    // nonisolated(unsafe) lets deinit (which is always nonisolated) safely access
-    // this handle under the SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor build setting.
-    // nonisolated(unsafe) so that deinit can safely remove the listener
-    // without crossing actor isolation boundaries.
-    nonisolated(unsafe) private var authStateHandle: AuthStateDidChangeListenerHandle?
+
+    // A reference-type box that holds the Firebase auth state listener handle.
+    // @unchecked Sendable is safe here because value is written exactly once (in
+    // listenToAuthState, on the MainActor) and read exactly once (in deinit, when no
+    // other references to self remain). There is no concurrent access scenario.
+    private final class AuthListenerHandleBox: @unchecked Sendable {
+        var value: AuthStateDidChangeListenerHandle?
+    }
+    // nonisolated let so that the nonisolated deinit can access the box directly.
+    nonisolated private let handleBox = AuthListenerHandleBox()
 
     init() {
         listenToAuthState()
     }
 
     deinit {
-        if let handle = authStateHandle {
+        if let handle = handleBox.value {
             // Use Auth.auth() directly so deinit doesn't need to hop to the main actor.
             Auth.auth().removeStateDidChangeListener(handle)
         }
@@ -63,7 +68,7 @@ final class AuthViewModel: ObservableObject {
     // MARK: - Auth state listener
 
     private func listenToAuthState() {
-        authStateHandle = auth.addStateDidChangeListener { [weak self] _, user in
+        handleBox.value = auth.addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
             Task { @MainActor in
                 if let user {

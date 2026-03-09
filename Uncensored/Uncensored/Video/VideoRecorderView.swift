@@ -661,7 +661,7 @@ struct VideoRecorderView: View {
                 )
             }
         }
-        .onChange(of: recordedVideoURL) { url in
+        .onValueChange(of: recordedVideoURL) { url in
             if url != nil { showVideoPreview = true }
         }
     }

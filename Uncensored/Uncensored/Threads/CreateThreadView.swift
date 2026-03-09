@@ -18,21 +18,27 @@ struct CreateThreadView: View {
 
     private let maxLength = 500
 
+    /// A length-limiting binding for the body text field.
+    /// Uses a custom setter to trim text synchronously, avoiding the deprecated onChange API.
+    private var limitedBodyText: Binding<String> {
+        Binding(
+            get: { bodyText },
+            set: { newValue in
+                bodyText = newValue.count > maxLength ? String(newValue.prefix(maxLength)) : newValue
+            }
+        )
+    }
+
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                TextEditor(text: $bodyText)
+                TextEditor(text: limitedBodyText)
                     .frame(minHeight: 120)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                     )
                     .padding(.horizontal)
-                    .onChange(of: bodyText) { value in
-                        if value.count > maxLength {
-                            bodyText = String(value.prefix(maxLength))
-                        }
-                    }
 
                 HStack {
                     Spacer()
