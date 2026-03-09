@@ -28,7 +28,7 @@ struct CreateThreadView: View {
                             .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                     )
                     .padding(.horizontal)
-                    .onChange(of: bodyText) { _, value in
+                    .onChange(of: bodyText) { value in
                         if value.count > maxLength {
                             bodyText = String(value.prefix(maxLength))
                         }

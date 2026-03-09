@@ -116,7 +116,7 @@ struct RepliesView: View {
         HStack(spacing: 10) {
             TextField("Add a reply…", text: $replyText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
-                .lineLimit(1...4)
+                .lineLimit(4)
 
             Button {
                 Task { await postReply() }

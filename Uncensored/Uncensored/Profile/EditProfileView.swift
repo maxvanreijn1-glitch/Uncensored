@@ -36,7 +36,7 @@ struct EditProfileView: View {
                         PhotosPicker(selection: $selectedItem, matching: .images) {
                             avatarPreview
                         }
-                        .onChange(of: selectedItem) { _, item in
+                        .onChange(of: selectedItem) { item in
                             Task { await loadImage(from: item) }
                         }
                         Spacer()
@@ -52,7 +52,7 @@ struct EditProfileView: View {
 
                     TextField("Display Name", text: $displayName)
                     TextField("Bio", text: $bio, axis: .vertical)
-                        .lineLimit(3...6)
+                        .lineLimit(6)
                 }
 
                 Section("Privacy") {
