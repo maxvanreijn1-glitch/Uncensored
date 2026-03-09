@@ -13,7 +13,11 @@ import GoogleSignIn
 struct UncensoredApp: App {
 
     init() {
-        FirebaseApp.configure()
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+        } else {
+            print("[UncensoredApp] WARNING: GoogleService-Info.plist not found -- Firebase is not configured.")
+        }
     }
 
     var body: some Scene {

@@ -17,7 +17,7 @@ A TikTok-like iOS app built with SwiftUI, Firebase, and Google Sign-In.
 ### 2. Add the iOS app to your Firebase project
 
 1. In the Firebase Console, click **Add app → iOS+**.
-2. Enter the bundle ID: `com.maxvanreijn1.uncensored.Uncensored`.
+2. Enter the bundle ID: `com.maxvanreijn1.Uncensored`.
 3. Download `GoogleService-Info.plist` and **drag it into** the `Uncensored/Uncensored/` folder in Xcode (make sure "Copy items if needed" is checked and the file is added to the `Uncensored` target).
 
 > ⚠️ **Never commit `GoogleService-Info.plist` to the repository.** It is listed in `.gitignore`.
