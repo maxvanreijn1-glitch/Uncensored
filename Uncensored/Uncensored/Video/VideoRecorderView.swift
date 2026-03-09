@@ -492,28 +492,14 @@ final class CameraManager: NSObject, ObservableObject {
         var insertTime = CMTime.zero
         for url in urls {
             let asset = AVURLAsset(url: url)
-            let duration: CMTime
-            if #available(iOS 16, *) {
-                duration = try await asset.load(.duration)
-            } else {
-                duration = asset.duration
-            }
+            let duration = try await asset.load(.duration)
             let timeRange = CMTimeRange(start: .zero, duration: duration)
 
-            if #available(iOS 16, *) {
-                if let track = try await asset.loadTracks(withMediaType: .video).first {
-                    try videoTrack.insertTimeRange(timeRange, of: track, at: insertTime)
-                }
-                if let track = try await asset.loadTracks(withMediaType: .audio).first {
-                    try audioTrack.insertTimeRange(timeRange, of: track, at: insertTime)
-                }
-            } else {
-                if let track = asset.tracks(withMediaType: .video).first {
-                    try videoTrack.insertTimeRange(timeRange, of: track, at: insertTime)
-                }
-                if let track = asset.tracks(withMediaType: .audio).first {
-                    try audioTrack.insertTimeRange(timeRange, of: track, at: insertTime)
-                }
+            if let track = try await asset.loadTracks(withMediaType: .video).first {
+                try videoTrack.insertTimeRange(timeRange, of: track, at: insertTime)
+            }
+            if let track = try await asset.loadTracks(withMediaType: .audio).first {
+                try audioTrack.insertTimeRange(timeRange, of: track, at: insertTime)
             }
             insertTime = CMTimeAdd(insertTime, duration)
         }
