@@ -135,7 +135,7 @@ struct UsernameSetupView: View {
                     .offset(x: 4, y: 4)
             }
         }
-        .onChange(of: avatarItem) { item in
+        .onValueChange(of: avatarItem) { item in
             Task { await loadAvatar(from: item) }
         }
     }
@@ -148,15 +148,15 @@ struct UsernameSetupView: View {
             HStack {
                 Text("@")
                     .foregroundColor(.gray)
-                TextField("", text: $username)
+                // Custom binding automatically lowercases input so the user sees exactly
+                // what will be saved, without using the deprecated onChange API.
+                TextField("", text: Binding(
+                    get: { username },
+                    set: { username = $0.lowercased() }
+                ))
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                     .foregroundColor(.white)
-                    .onChange(of: username) { value in
-                        // Display lowercase in real-time so the user sees exactly what will be saved
-                        let lowered = value.lowercased()
-                        if lowered != value { username = lowered }
-                    }
             }
             .padding()
             .background(Color.white.opacity(0.1))
@@ -199,15 +199,14 @@ struct UsernameSetupView: View {
                         .padding(.top, 12)
                         .padding(.leading, 4)
                 }
-                TextEditor(text: $bio)
+                // Custom binding enforces the character limit synchronously.
+                TextEditor(text: Binding(
+                    get: { bio },
+                    set: { bio = $0.count > bioLimit ? String($0.prefix(bioLimit)) : $0 }
+                ))
                     .scrollContentBackground(.hidden)
                     .foregroundColor(.white)
                     .frame(minHeight: 80, maxHeight: 120)
-                    .onChange(of: bio) { value in
-                        if value.count > bioLimit {
-                            bio = String(value.prefix(bioLimit))
-                        }
-                    }
             }
             .padding(8)
             .background(Color.white.opacity(0.1))

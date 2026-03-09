@@ -17,8 +17,25 @@ struct MainTabView: View {
         case home, threads, create, messages, profile
     }
 
+    /// Custom binding that intercepts taps on the "+" tab and opens the create sheet
+    /// instead of actually switching to that tab. Using a binding avoids the async delay
+    /// that would occur with onChange/onValueChange approaches.
+    private var tabSelection: Binding<Tab> {
+        Binding(
+            get: { selectedTab },
+            set: { newTab in
+                if newTab == .create {
+                    showCreateSheet = true
+                    // Do NOT update selectedTab — keep the current tab active.
+                } else {
+                    selectedTab = newTab
+                }
+            }
+        )
+    }
+
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: tabSelection) {
             // 1 – Home (video feed) — fullscreen, no navigation bar
             VideoFeedView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
@@ -53,13 +70,6 @@ struct MainTabView: View {
             .tag(Tab.profile)
         }
         .tint(.primary)
-        // Intercept tap on the "+" tab and open sheet instead
-        .onChange(of: selectedTab) { newTab in
-            if newTab == .create {
-                showCreateSheet = true
-                selectedTab = .home   // Immediately reset so it never visually selects
-            }
-        }
         .sheet(isPresented: $showCreateSheet) {
             CreateSheetView()
                 .environmentObject(authVM)

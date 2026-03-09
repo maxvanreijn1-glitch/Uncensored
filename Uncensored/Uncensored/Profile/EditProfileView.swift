@@ -36,7 +36,7 @@ struct EditProfileView: View {
                         PhotosPicker(selection: $selectedItem, matching: .images) {
                             avatarPreview
                         }
-                        .onChange(of: selectedItem) { item in
+                        .onValueChange(of: selectedItem) { item in
                             Task { await loadImage(from: item) }
                         }
                         Spacer()
