@@ -6,7 +6,7 @@
 import Foundation
 
 struct VideoModel: Identifiable, Codable {
-    let id: String          // Firestore document ID
+    var id: String          // Firestore document ID
     let authorId: String
     var authorUsername: String
     var videoURL: String
@@ -32,16 +32,18 @@ struct VideoModel: Identifiable, Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+        // id may be absent in documents created without storing the field;
+        // fall back to a UUID to satisfy Identifiable and avoid SwiftUI identity conflicts.
+        id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
         authorId = try container.decode(String.self, forKey: .authorId)
         authorUsername = (try? container.decode(String.self, forKey: .authorUsername)) ?? ""
         videoURL = try container.decode(String.self, forKey: .videoURL)
         thumbnailURL = try? container.decode(String.self, forKey: .thumbnailURL)
-        caption = try container.decode(String.self, forKey: .caption)
-        likesCount = try container.decode(Int.self, forKey: .likesCount)
-        commentsCount = try container.decode(Int.self, forKey: .commentsCount)
-        sharesCount = try container.decode(Int.self, forKey: .sharesCount)
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        caption = (try? container.decode(String.self, forKey: .caption)) ?? ""
+        likesCount = (try? container.decode(Int.self, forKey: .likesCount)) ?? 0
+        commentsCount = (try? container.decode(Int.self, forKey: .commentsCount)) ?? 0
+        sharesCount = (try? container.decode(Int.self, forKey: .sharesCount)) ?? 0
+        createdAt = (try? container.decode(Date.self, forKey: .createdAt)) ?? Date()
     }
 
     init(id: String, authorId: String, authorUsername: String = "", videoURL: String,

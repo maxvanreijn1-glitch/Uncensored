@@ -79,6 +79,7 @@ struct CreateThreadView: View {
         }
     }
 
+    @MainActor
     private func post() async {
         guard let uid = Auth.auth().currentUser?.uid else {
             errorMessage = "You must be signed in."

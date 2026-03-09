@@ -29,7 +29,7 @@ struct AppRootView: View {
                     .environmentObject(authVM)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: authStateTag)
+        .animation(.easeInOut(duration: 0.3), value: authVM.authState)
     }
 
     private var splashView: some View {
@@ -38,16 +38,6 @@ struct AppRootView: View {
             Text("Uncensored")
                 .font(.largeTitle.bold())
                 .foregroundColor(.white)
-        }
-    }
-
-    /// A simple equatable tag used to drive the state transition animation.
-    private var authStateTag: Int {
-        switch authVM.authState {
-        case .loading:       return 0
-        case .signedOut:     return 1
-        case .needsUsername: return 2
-        case .signedIn:      return 3
         }
     }
 }
