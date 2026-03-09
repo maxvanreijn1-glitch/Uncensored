@@ -25,7 +25,7 @@ struct VideoPlayerView: View {
             .onDisappear {
                 teardownPlayer()
             }
-            .onChange(of: isActive) { _, active in
+            .onChange(of: isActive) { active in
                 if active {
                     player?.seek(to: .zero)
                     player?.play()
@@ -33,7 +33,7 @@ struct VideoPlayerView: View {
                     player?.pause()
                 }
             }
-            .onChange(of: url) { _, newURL in
+            .onChange(of: url) { newURL in
                 teardownPlayer()
                 setupPlayer(url: newURL)
             }

@@ -113,7 +113,7 @@ struct CommentsView: View {
         HStack(spacing: 10) {
             TextField("Add a comment…", text: $commentText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
-                .lineLimit(1...4)
+                .lineLimit(4)
 
             Button {
                 Task { await postComment() }
