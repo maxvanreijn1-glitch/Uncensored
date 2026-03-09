@@ -10,7 +10,7 @@ import FirebaseFirestore
 import FirebaseStorage
 
 /// Represents the current authentication and profile state of the app.
-enum AuthState {
+enum AuthState: Equatable {
     case loading
     case signedOut
     case needsUsername(uid: String)

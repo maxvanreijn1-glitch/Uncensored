@@ -135,23 +135,25 @@ struct LoginView: View {
               let rootVC = windowScene.windows.first?.rootViewController else { return }
 
         GIDSignIn.sharedInstance.signIn(withPresenting: rootVC) { result, error in
-            if let error {
-                errorMessage = error.localizedDescription
-                return
-            }
-            guard
-                let user = result?.user,
-                let idToken = user.idToken?.tokenString
-            else {
-                errorMessage = "Google sign-in failed."
-                return
-            }
-            let credential = GoogleAuthProvider.credential(
-                withIDToken: idToken,
-                accessToken: user.accessToken.tokenString
-            )
-            Auth.auth().signIn(with: credential) { _, error in
+            Task { @MainActor in
                 if let error {
+                    errorMessage = error.localizedDescription
+                    return
+                }
+                guard
+                    let user = result?.user,
+                    let idToken = user.idToken?.tokenString
+                else {
+                    errorMessage = "Google sign-in failed."
+                    return
+                }
+                let credential = GoogleAuthProvider.credential(
+                    withIDToken: idToken,
+                    accessToken: user.accessToken.tokenString
+                )
+                do {
+                    try await Auth.auth().signIn(with: credential)
+                } catch {
                     errorMessage = error.localizedDescription
                 }
             }
@@ -173,14 +175,18 @@ struct LoginView: View {
     private func handleAppleCompletion(_ result: Result<ASAuthorization, Error>) {
         switch result {
         case .failure(let error):
-            errorMessage = error.localizedDescription
+            Task { @MainActor in
+                errorMessage = error.localizedDescription
+            }
         case .success(let authorization):
             guard
                 let appleCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
                 let tokenData = appleCredential.identityToken,
                 let tokenString = String(data: tokenData, encoding: .utf8)
             else {
-                errorMessage = "Apple sign-in failed."
+                Task { @MainActor in
+                    errorMessage = "Apple sign-in failed."
+                }
                 return
             }
             // TODO: Use a real nonce in production.
@@ -189,8 +195,10 @@ struct LoginView: View {
                 rawNonce: nil,
                 fullName: appleCredential.fullName
             )
-            Auth.auth().signIn(with: credential) { _, error in
-                if let error {
+            Task { @MainActor in
+                do {
+                    try await Auth.auth().signIn(with: credential)
+                } catch {
                     errorMessage = error.localizedDescription
                 }
             }
